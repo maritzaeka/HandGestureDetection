@@ -1,0 +1,224 @@
+Ikuti langkah2 berikut untuk setting MQTT broker menggunakan SSL/TLS di VM:
+* Install mosquitto dan openssl: 
+sudo apt update
+sudo apt install -y mosquitto mosquitto-clients openssl
+* Kalo mau save file yg di edit: CTRL + X --> Y --> ENTER
+* ada script yg bisa disalin untuk jalanin step A3-8 (dgn syarat udh pernah ada file yg dibuat sebelumnya, kalo belum modif aja scriptnya)
+
+A. GENERATE SSL/TLS CERTIFICATE
+ip a --> catat ip addr VM Brokernya
+1. Buat directory utk certificates
+sudo mkdir -p /etc/mosquitto/certs
+sudo chmod 700 /etc/mosquitto/certs
+cd /etc/mosquitto/certs
+
+2. Buat SAN Config File
+sudo nano san.cnf 
+*** Copy file san.cnf yg dikirimkan dan adjust sesuai kondisi VM
+
+3. Generate Certificate Authority (CA) Private Key
+sudo openssl genrsa -out ca.key 2048 
+--> create 2048-bit RSA private key utk CA (master key yg akan sign sertifikat lain). Pake 2048 bit karena ESP hanya sanggup menggunakan 2048, tidak bisa yang 4096 karena memorynya takut ga cukup (terlalu berat utk esp8266) dan sebaiknya CA cert size < 2KB.
+
+4. Generate CA Certificate
+sudo openssl req -new -x509 -days 3650 -key ca.key -out ca.crt
+**Expected Output:**
+```
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+-----
+Country Name (2 letter code) [AU]: ID
+State or Province Name (full name) [Some-State]: Jakarta
+Locality Name (eg, city) []: Jakarta
+Organization Name (eg, company) []: BCA-PPTI17
+Organizational Unit Name (eg, section) []: IT
+Common Name (e.g. server FQDN or YOUR name) []: (IP Address VM)
+Email Address []: (enter aja)
+--> utk membuat self-signed CA certificate valid utk 10 tahun.
+
+5. Generate Server Private Key --> jalanin dari step ini sampe last step bagian A jika IP broker berubah2. TAPI kalau udah pake mDNS aman harusnya
+sudo openssl genrsa -out server.key 2048
+--> create private key utk mosquitto broker server
+
+6. Create certificate Signing Request (CSR) 
+sudo openssl req -new -key server.key -out server.csr -config san.cnf 
+--> create certificate signing request. Common Name harus match dgn server hostname atau IP Address VM Broker
+---> pastikan config san.cnf file ada dan TIDAK ada TYPO
+
+7. Sign Server Certificate with CA
+sudo openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt -days 3650 -extensions v3_req -extfile san.cnf
+Expected output: keluar sesuai yg diisi di san.cnf tadi.
+--> pake CA kita tadi (step 3-4) utk sign sertifikat server mosquitto, ini create a trusted certificate chain valid utk 10 tahun.
+
+# Verify SAN included di certificate 
+sudo openssl x509 -in /etc/mosquitto/certs/server.crt -noout -text | grep -A10 "Subject Alternative Name"
+***Expected output:
+X509v3 Subject Alternative Name: 
+                DNS:sesuai yg diisi, IP Address:sesuai yg diisi
+
+8. Set Certificate Permissions
+# Set directory permissions
+sudo chmod 755 /etc/mosquitto/certs
+
+# Set file ownership and permissions
+sudo chown root:mosquitto /etc/mosquitto/certs/ca.key
+sudo chown root:mosquitto /etc/mosquitto/certs/server.key  
+sudo chmod 640 /etc/mosquitto/certs/ca.key          
+sudo chmod 640 /etc/mosquitto/certs/server.key     ---> private key - only root and mosquitto can read
+sudo chmod 644 /etc/mosquitto/certs/ca.crt
+sudo chmod 644 /etc/mosquitto/certs/san.cnf        --> SAN Config readable by all (contains no secret)
+sudo chmod 644 /etc/mosquitto/certs/server.crt     --> Public certificate - everyone can read
+sudo chmod 600 /etc/mosquitto/certs/server.csr     --> Root only (not needed after signing)
+
+# Validasi
+ls -l /etc/mosquitto/certs/
+*** Expected result:
+-rw-r--r-- 1 root     root      1234 Dec 21 10:00 ca.crt
+-rw-r----- 1 root     mosquitto 1675 Dec 21 10:00 ca.key
+-rw-r--r-- 1 root     root      1234 Dec 21 10:00 server.crt
+-rw------- 1 root     root       789 Dec 21 10:00 server.csr
+-rw-r----- 1 root     mosquitto 1675 Dec 21 10:00 server.key
+
+9. Copy file ca.crt ke local utk dishare
+di VM:
+sudo apt install openssh-server (utk client/penerima klo berupa VM bisa sudo apt install openssh-client, di windows udh terinstal hrsnya)
+
+# Verify
+sudo service ssh status 
+
+Di Local CMD:
+scp username@ip:/etc/mosquitto/certs/ca.crt /path/to/local/directory
+contoh:
+scp vboxuser@192.168.18.54:/etc/mosquitto/certs/ca.crt C:\Users\Tralala\Documents\mqtt
+*** pastikan path dan folder utk paste di local udah ada, copy aja pathnya dari file explorer.
+Setelah dapet filenya, share ke grup ya.
+
+B. SETUP mDNS in VM using Avahi
+1. Install Avahi (mDNS Service)
+sudo apt update
+sudo apt install avahi-daemon avahi-utils 
+
+2. Configure Avahi 
+sudo nano /etc/avhi/avahi-daemon.conf 
+Lalu ikuti config di file avahi-daemon.conf yg dikirimkan (ada di github)
+
+3. Set System Hostname
+sudo hostnamectl set-hostname mqtt-broker-atm-tunanetra
+
+# verify
+hostname
+***Expected output: mqtt-broker-atm-tunanetra
+
+4. Restart Avahi 
+sudo systemctl restart avahi-daemon
+sudo systemctl enable avahi-daemon
+
+# verify
+sudo systemctl status avahi-daemon
+***Expected: active running
+
+5. Test mDNS Resolution
+avahi-resolve -n mqtt-broker-atm-tunanetra.local
+***Expected output: mqtt-broker-atm-tunanetra.local (IP VM local)
+
+6. Coba Ping dari device lain di network (wifi) yg sama 
+ping mqtt-broker-atm-tunanetra.local
+
+C. CREATE USER AUTHENTICATION
+1. Create password file with first user
+sudo mosquitto_passwd -c /etc/mosquitto/passwd espkeypad
+masukin password (ga di show) untuk user ini. Catat user dan passwordnya, ini dipake client2 kyk ESP dan services nantinya.
+--> Flag -c digunakan utk membuat file password baru dengan user pertama, setelah file password kebuat, utk tambahin user-pass berikutnya gaperlu flag ini lagi. (-c sifatnya create/overwrite file, bukan append)
+
+2. Add additional users
+sudo mosquitto_passwd /etc/mosquitto/passwd espmic
+sudo mosquitto_passwd /etc/mosquitto/passwd esplamp
+sudo mosquitto_passwd /etc/mosquitto/passwd aicam
+sudo mosquitto_passwd /etc/mosquitto/passwd atmservice
+sudo mosquitto_passwd /etc/mosquitto/passwd sttservice
+sudo mosquitto_passwd /etc/mosquitto/passwd ttsservice
+*** saran: catet user-passwordnya trs share ke grup. Kalo mau gampang passwordnya samain semua wkwkkw. Btw perhatiin ini udh gapake flag -c lagi krn udh ada filenya dan kita mau append aja, ga overwrite.
+
+3. Set Password File Permissions
+sudo chown mosquitto:mosquitto /etc/mosquitto/passwd
+sudo chmod 640 /etc/mosquitto/passwd
+
+# verify
+ls -l /etc/mosquitto/passwd
+*** Expected result: 
+-rw-r----- 1 mosquitto mosquitto 123 Dec 21 10:00 /etc/mosquitto/passwd
+--> biar password file bisa di read user mosquitto tapi gabisa di read scr global (640 = owner read/write, group read, others nothing)
+
+4. Verify Password file content
+sudo cat /etc/mosquitto/passwd
+***Expected output: aampil semua user yg udh didaftarkan + hashed passnya
+
+D. Create Access Control List (ACL)
+1. Create ACL File
+sudo nano /etc/mosquitto/acl
+user [nama user]
+topic write [nama topic] --> ini utk kasih akses publish ke usernya
+topic read [nama topic] --> ini utk kasih akses subscribe ke usernya
+CONTOH:
+user espkeypad
+topic write atm/keypad
+topic write atm/text/output
+
+user espmic
+topic write atm/audio/input
+topic read atm/audio/output
+
+*** lakukan utk seuruh user yg udh dibuat di step B.
+**notes: untuk wildcard (bisa terima apa aja) itu pake +, contoh: topic write atm/+/keypad. Jadi usernya bisa publish ke topic spt atm/1/keypad, atm/2/keypad.
+Untuk ini, ikutin file acl yg kukirim saja yak.
+
+2. Set ACL File Permissions
+sudo chown mosquitto:mosquitto /etc/mosquitto/acl
+sudo chmod 640 /etc/mosquitto/acl
+
+# verify
+ls -l /etc/mosquitto/acl
+***Expected result:
+-rw-r----- 1 mosquitto mosquitto 456 Dec 21 10:00 /etc/mosquitto/acl
+
+# opsional: verify content file ACL
+cat /etc/mosquitto/acl
+
+E. CONFIG mosquitto
+1. Backup original config
+sudo cp /etc/mosquitto/mosquitto.conf /etc/mosquitto/mosquitto.conf.backup
+
+2. Edit mosquitto config
+sudo nano /etc/mosquitto/mosquitto.conf
+Lalu paste config yg dishare
+
+3. Test config
+sudo mosquitto -c /etc/mosquitto/mosquitto.conf -v
+***Expected output:
+1703152200: mosquitto version 2.x starting
+1703152200: Config loaded from /etc/mosquitto/mosquitto.conf.
+1703152200: Opening ipv4 listen socket on port 8883.
+1703152200: Opening ipv6 listen socket on port 8883.
+1703152200: mosquitto version 2.x running
+
+F. ENABLE AND START MOSQUITTO SERVICE 
+1. Restart Mosquitto service 
+sudo systemctl restart mosquitto
+
+2. Verify mosquitto service running 
+sudo systemctl status mosquitto 
+***Expected output: Active: active (running)
+
+3. Verify port is listening
+sudo ss -tulnp | grep 8883
+
+
+G. TEST MQTT BROKER 
+Yang ini bisa jalanin di cmd windows (kalo udh install mosquitto di windows) atau
+di VM yang pernah dijadiin pub/sub, asalkan udh install juga mosquitto dgn sudo apt install mosquitto
+
+Subscriber:
+mosquitto_sub -h ip.broker -p 8883 -t "atm/keypad/input" -u atmservice -P password --cafile /path/to/ca.crt
+
+Publisher:
+mosquitto_pub -h ip.broker -p 8883 -t "atm/keypad/input" -u atmservice -P password --cafile /path/to/ca.crt -m "Testing masuk bang"

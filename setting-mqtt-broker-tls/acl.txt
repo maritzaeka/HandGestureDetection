@@ -1,0 +1,30 @@
+user espkeypad
+topic write atm/keypad
+topic write atm/text/output
+
+user espmic
+topic write atm/audio/input 
+topic read atm/audio/output 
+
+user esplamp 
+topic read atm/warn
+
+user aicam
+topic write atm/warn
+topic write atm/session
+
+user sttservice
+topic write atm/text/input
+topic read atm/audio/input
+
+user ttsservice
+topic write atm/audio/output 
+topic read atm/text/output
+
+user atmservice
+topic write atm/text/output
+topic read atm/keypad
+topic read atm/text/input
+topic read atm/session
+
+========== PENJELASAN

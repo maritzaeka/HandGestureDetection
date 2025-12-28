@@ -1,0 +1,64 @@
+[req]
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+C = ID
+ST = Jakarta
+L = Jakarta
+O = MyCompany
+OU = IT
+CN = 192.168.1.200 <--- ganti dgn IP broker atau hostname yg mau dipake (bebas, saran: samain dgn DNS.1)
+
+[v3_req]
+keyUsage = digitalSignature, keyEncipherment, dataEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = mqtt-broker-atm-tunanetra
+DNS.2 = mqtt-broker-ppti17
+DNS.3 = local-ubuntu
+IP.1 = (IP BROKER)
+IP.2 = (Kalo ada IP broker lain yg diketahui possible, bisa bikin IP Static juga kalo mau)
+
+========= NOTES: Kalo mau buat IP Static
+1. sudo nano /etc/netplan/01-netcfg.yaml
+ketikkan ini (kalo menjorok pake tab):
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    enp0s3: 
+      dhcp4: no
+      addresses:
+        - 192.168.1.100/24   <--- better di ip a dulu utk cek ipv4 dynamicnya, terus ambil 192.168.x.y dgn x = ikutin ip local, y = bebas yg penting dlm subnet
+      gateway4: 192.168.1.1  <--- polanya 192.168.x.1
+      nameservers:
+        addresses:
+            - 8.8.8.8
+            - 1.1.1.1
+
+2. sudo netplan apply
+3. Verify: ip addr show (pastikan udh sesuai ip staticnya)
+
+
+======= PENJELASAN
+[req] - General request settings
+[req_distinguished_name] - Certificate identity information (adjust to your values)
+C = Country (2-letter code)
+ST = State/Province
+L = Locality/City
+O = Organization
+OU = Organizational Unit
+CN = Common Name (your server's primary IP or hostname)
+
+[v3_req] - X.509 v3 extensions
+keyUsage - How the key can be used
+extendedKeyUsage - Extended usage (serverAuth for TLS servers)
+subjectAltName - Points to the alt_names section
+
+[alt_names] - Alternative names this certificate is valid for
+DNS.X - Hostnames (add all hostnames clients might use) --> ini biar gaperlu ganti IP Address kalo IP Address berubah
+IP.X - IP addresses (add all IPs clients might use)

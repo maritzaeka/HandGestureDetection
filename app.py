@@ -25,33 +25,33 @@ import os
 app = FastAPI(title="ESP32 Hand Open Detection API")
 
 
-MQTT_BROKER = "192.168.18.54"
+MQTT_BROKER = "192.168.2.140" #wifi kos
 # MQTT_BROKER = "mqtt.local"
-MQTT_PORT = 8883
+# MQTT_PORT = 8883
+MQTT_PORT = 1883
 MQTT_TOPIC = "atm/warn"
 MQTT_USERNAME = "backend"
 MQTT_PASSWORD = "user"
-CA_CERT_PATH = os.path.join(os.path.dirname(__file__), "ca.crt")
+# CA_CERT_PATH = os.path.join(os.path.dirname(__file__), "ca.crt")
 
 # Buat client biasa
 mqtt_client = mqtt.Client(client_id="ai-hand-detector")  # Optional client_id
 
 # Set username/password
-mqtt_client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+# mqtt_client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
 
-# Set TLS (sertifikat CA)
-mqtt_client.tls_set(
-    ca_certs=CA_CERT_PATH,
-    certfile=None,   # kalau broker gak minta client cert
-    keyfile=None,    # kalau broker gak minta client key
-    tls_version=ssl.PROTOCOL_TLSv1_2
-)
-mqtt_client.tls_insecure_set(False)  # pastikan broker certificate, tls insecure jangan mau -> dicek IPSAN
+# # Set TLS (sertifikat CA)
+# mqtt_client.tls_set(
+#     ca_certs=CA_CERT_PATH,
+#     certfile=None,   # kalau broker gak minta client cert
+#     keyfile=None,    # kalau broker gak minta client key
+#     tls_version=ssl.PROTOCOL_TLSv1_2
+# )
+# mqtt_client.tls_insecure_set(True)  # pastikan broker certificate, tls insecure jangan mau -> dicek IPSAN
 
 # Connect & start loop
 mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
 mqtt_client.loop_start()
-
 
 
 # =========================
@@ -161,7 +161,7 @@ async def detect_hand(file: UploadFile = File(...)):
             # Buat payload peringatan untuk MQTT
             payload = {
                 "event": "HAND_OPEN",
-                "message": "⚠ WARNING: NASABAH MINTA TOLONG",
+                "message": "WARNING: NASABAH MINTA TOLONG",
                 "timestamp": time.time()
             }
 
