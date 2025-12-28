@@ -25,20 +25,22 @@ import os
 app = FastAPI(title="ESP32 Hand Open Detection API")
 
 
-MQTT_BROKER = "192.168.2.140" #wifi kos
+MQTT_BROKER = "10.34.111.16" #wifi kos
 # MQTT_BROKER = "mqtt.local"
 # MQTT_PORT = 8883
 MQTT_PORT = 1883
 MQTT_TOPIC = "atm/warn"
-MQTT_USERNAME = "backend"
-MQTT_PASSWORD = "user"
+# MQTT_USERNAME = "backend"
+# MQTT_PASSWORD = "user"
+MQTT_USERNAME = "aicam"
+MQTT_PASSWORD = "qwer"
 # CA_CERT_PATH = os.path.join(os.path.dirname(__file__), "ca.crt")
 
 # Buat client biasa
 mqtt_client = mqtt.Client(client_id="ai-hand-detector")  # Optional client_id
 
-# Set username/password
-# mqtt_client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+# Set username/password, tiap topic punya kl connect broker hrs connect 
+mqtt_client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
 
 # # Set TLS (sertifikat CA)
 # mqtt_client.tls_set(
