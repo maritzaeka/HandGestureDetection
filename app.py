@@ -25,7 +25,7 @@ import os
 app = FastAPI(title="ESP32 Hand Open Detection API")
 
 
-MQTT_BROKER = "10.34.111.16" #wifi kos
+MQTT_BROKER = "192.168.18.77" #wifi kos
 # MQTT_BROKER = "mqtt.local"
 # MQTT_PORT = 8883
 MQTT_PORT = 1883
