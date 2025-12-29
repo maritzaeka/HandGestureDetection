@@ -1,5 +1,6 @@
 import ssl
 from fastapi import FastAPI, UploadFile, File
+from datetime import datetime
 
 # MediaPipe menyediakan model AI siap pakai untuk deteksi tangan secara real-time, ringan, dan akurat
 #--> MediaPipe punya pre-trained deep learning model (Hand Landmarker) mendeteksi 21 landmark tangan
@@ -160,17 +161,18 @@ async def detect_hand(file: UploadFile = File(...)):
         hand_landmarks = result.hand_landmarks[0]
 
         if is_hand_open(hand_landmarks):
-            # Buat payload peringatan untuk MQTT
+            # Buat payload peringatan untuk MQTT, pub utk alert
             payload = {
                 "event": "HAND_OPEN",
                 "message": "WARNING: NASABAH MINTA TOLONG",
-                "timestamp": time.time()
+                "timestamp_epoch": time.time(),
+                "timestamp_human": datetime.now().strftime("%H:%M:%S")
             }
 
             # Kirim pesan ke broker MQTT
             mqtt_client.publish(MQTT_TOPIC, str(payload))
 
-            # Balikan response ke client (ESP32-CAM) → tangan terbuka
+            # Balikan response ke client (ESP32-CAM) → tangan terbuka (respon utk  cam)
             return {
                 "warning": True,
                 "message": "Telapak tangan terdeteksi – peringatan dikirim resp api"
