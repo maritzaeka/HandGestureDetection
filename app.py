@@ -146,12 +146,23 @@ async def detect_hand(file: UploadFile = File(...)):
         image_format=mp.ImageFormat.SRGB,
         data=frame_rgb
     )
+    
+    # =========================
+    # IMAGE RECEIVED (Sensor → AI)
+    # =========================
+    image_sent_time = time.time()
 
     # =========================
     # PROSES AI (INFERENCE)
     # =========================
     # detector.detect → cek apakah ada tangan + landmark
     result = detector.detect(mp_image)
+    
+    # AI Result Time
+    ai_result_time = time.time()
+
+    # Hitung Sensor-to-AI Response Time (Table 3.1)
+    sensor_to_ai_response_ms = (ai_result_time - image_sent_time) * 1000
 
     # =========================
     # CEK LOGIKA TANGAN TERBUKA
@@ -162,11 +173,21 @@ async def detect_hand(file: UploadFile = File(...)):
 
         if is_hand_open(hand_landmarks):
             # Buat payload peringatan untuk MQTT, pub utk alert
+            
+            # AI Publish Time (Table 3.2)
+            ai_publish_time = time.time()
+            
             payload = {
                 "event": "HAND_OPEN",
                 "message": "WARNING: NASABAH MINTA TOLONG",
-                "timestamp_epoch": time.time(),
-                "timestamp_human": datetime.now().strftime("%H:%M:%S")
+                
+                # ===== TABLE 3.1 =====
+                "image_sent_time": datetime.fromtimestamp(image_sent_time).strftime("%H:%M:%S.%f")[:-3],
+                "ai_result_time": datetime.fromtimestamp(ai_result_time).strftime("%H:%M:%S.%f")[:-3],
+                "sensor_to_ai_response_ms": round(sensor_to_ai_response_ms, 2),
+
+                # ===== TABLE 3.2 =====
+                "ai_publish_time": datetime.fromtimestamp(ai_publish_time).strftime("%H:%M:%S.%f")[:-3]
             }
 
             # Kirim pesan ke broker MQTT
