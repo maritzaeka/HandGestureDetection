@@ -186,8 +186,9 @@ async def detect_hand(file: UploadFile = File(...)):
                 "ai_result_time": datetime.fromtimestamp(ai_result_time).strftime("%H:%M:%S.%f")[:-3],
                 "sensor_to_ai_response_ms": round(sensor_to_ai_response_ms, 2),
 
-                # ===== TABLE 3.2 =====
-                "ai_publish_time": datetime.fromtimestamp(ai_publish_time).strftime("%H:%M:%S.%f")[:-3]
+                # ===== TABLE 3.2 (BRIDGE) =====
+                "ai_publish_time": datetime.fromtimestamp(ai_publish_time).strftime("%H:%M:%S.%f")[:-3],
+                "ai_result_epoch": ai_result_time
             }
 
             # Kirim pesan ke broker MQTT
